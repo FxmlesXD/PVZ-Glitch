@@ -1,61 +1,127 @@
-﻿#include "pvzclass.h"
+#include "pvzclass.h"
 #include <iostream>
 #include "events.h"
 #include <ctime>
 #include <sys/timeb.h>
+#include <stdlib.h>
 #include <conio.h>
 #include <Windows.h>
 using namespace std;
 //声明变量
 int waittime;
+////////////////////
 int papertype;
-int a0x768;
-Zombie* jdshjfgshg;
-Plant* hsafshahhhhh;
-//////////////////////////////////
-int diyicijinru = 0;
-bool sixunhuanneedexit = false;
-PVZLevel::PVZLevel level;
-//////////////////////////////////
+int peazombietype;
+////////////////////
 HWND PVZhWnd;
 DWORD pid;
 PVZ* pvz;
 PVZ::Mouse* mouse;
 PVZ::CardSlot* seedcard;
 PVZ::Memory* memory;
+HWND hWnd = FindWindowA("ConsoleWindowClass", NULL);//主窗口句柄
 //声明变量
 
-BOOL WINAPI OnExit(DWORD dwCtrlType) {
+
+
+DWORD WINAPI peazombirthread(LPVOID)
+{
+	int row;
+	srand(time(NULL));
+	struct timeb timeSeed;
+	ftime(&timeSeed);
+	srand(timeSeed.time * 1000 + timeSeed.millitm);  // milli time
+	row = rand() % 5;
+	if (peazombietype == 5)
+	{
+		Zombie* zombie = Creater::CreateZombie(ZombieType::PeashooterZombie, row, 12);
+		zombie->Temp = 66988;
+		while (zombie->NotDying == true)
+		{
+			if (pvz->GamePaused != true)
+			{
+				//zombie->GarlicBited = true;
+				Projectile* pro = Creater::CreateProjectile(ProjectileType::ZombiePea, zombie->Row, zombie->X);
+				pro->Motion = MotionType::Left;
+				zombie->X = zombie->X - 20;
+				Sleep(300);
+			}
+		}
+	}
+	return 0;
+}
+
+DWORD WINAPI propeazombiethread(LPVOID)
+{
+	Event* e;
+	srand((unsigned)time(NULL));
+	peazombietype = rand() % 10 + 1;
+	cout << peazombietype << endl;
+	if (peazombietype == 5)
+	{
+		memory->WriteMemory<int>(0x65109A, 1);
+		CreateThread(NULL, 0, &peazombirthread, NULL, 0, NULL);
+		Sleep(10);
+		memory->WriteMemory<int>(0x65109A, 0);
+	}
+	Sleep(5000);
+	return 0;
+}
+
+BOOL WINAPI OnExit(DWORD)
+{
 	if (MessageBoxA(NULL, "您要一起关闭游戏吗？", "提示", MB_YESNO | MB_ICONQUESTION) == IDYES)
 	{
 		system("taskkill /im plantsvszombies.exe");
 	}
 	else
 	{
-		MessageBoxA(NULL, "启动器即将关闭，游戏\n可能会出现许多\n奇奇怪怪的bug哦！", "提示", MB_OK | MB_ICONERROR);
+		MessageBoxA(NULL, "启动器即将关闭，游戏\n可能会出现bug！", "提示", MB_OK | MB_ICONERROR);
 	}
 	return 0;
 }
 
+DWORD WINAPI flyplantthread(LPVOID)
+{
+	Plant* plants[100];
+	int len = pvz->GetAllPlants(plants);
+	for (int i = 0; i < len; i++)
+	{
+		while (pvz->BaseAddress)
+		{
+			plants[i]->X = plants[i]->X + 1;
+			Sleep(50);
+		}
+	}
+	return 0;
+}
+
+void OnZombieSpawn(Event* e)
+{
+	if (((EventZombieSpawn*)e)->zombie->Type == ZombieType::PeashooterZombie && ((EventZombieSpawn*)e)->zombie->Temp != 66988)
+	{
+		CreateThread(NULL, 0, &propeazombiethread, NULL, 0, NULL);
+	}
+}
+
 void OnDeath(Event* e)//僵尸死亡
 {
-	Zombie* zombie = ((EventZombieDead*)e)->zombie;
 	int newzombietype = 0;
 	newzombietype = rand() % 32 - 0;
-	if (zombie->Type == ZombieType::ScreenDoorZombie)
+	if (((EventZombieDead*)e)->zombie->Type == ZombieType::ScreenDoorZombie)
 	{
-		Creater::CreateZombie((ZombieType::ZombieType)newzombietype, zombie->Row, zombie->X / 80);
+		Creater::CreateZombie((ZombieType::ZombieType)newzombietype, ((EventZombieDead*)e)->zombie->Row, ((EventZombieDead*)e)->zombie->X / 80);
 		Sleep(50);
 	}
-	if (zombie->Type == ZombieType::WallnutZombie)
+	if (((EventZombieDead*)e)->zombie->Type == ZombieType::WallnutZombie)
 	{
-		Zombie* jackzombie = Creater::CreateZombie(ZombieType::JackintheboxZombie, zombie->Row, zombie->X / 80);
+		Zombie* jackzombie = Creater::CreateZombie(ZombieType::JackintheboxZombie, ((EventZombieDead*)e)->zombie->Row, ((EventZombieDead*)e)->zombie->X / 80);
 		jackzombie->State = ZombieState::JACKBOX_POP;
 		jackzombie->AttributeCountdown = 10;
 		jackzombie->Visible = false;
 		jackzombie->Hit(100000);
-		zombie->Hit(1000000);
-		zombie->NotDying = false;
+		((EventZombieDead*)e)->zombie->Hit(1000000);
+		((EventZombieDead*)e)->zombie->NotDying = false;
 	}
 }
 
@@ -146,21 +212,9 @@ void OnBungeeZombieSpawn(Event* e)
 		{
 			if (pvz->GamePaused != true)
 			{
-				for (int i = 0; i <= 4; i++)
-				{
-					if (i != 4)
-					{
-						Projectile* pro = Creater::CreateProjectile(ProjectileType::ZombiePea, zombie->Row, zombie->X - 72);
-						pro->Motion = MotionType::Left;
-						Sleep(100);
-					}
-					else
-					{
-						Sleep(500);
-						continue;
-					}
-
-				}
+				Projectile* pro = Creater::CreateProjectile(ProjectileType::ZombiePea, zombie->Row, zombie->X - 72);
+				pro->Motion = MotionType::Left;
+				Sleep(500);
 			}
 		}
 	}
@@ -215,6 +269,11 @@ void OnPlantDamage(Event* e)
 		Creater::CreateEffect(76, plant->X + 35, plant->Y + 35);
 		plant->Hp = -1000000;
 	}
+	if (zombie->Temp == 66988)
+	{
+		plant->Squash = true;
+		zombie->GarlicBited = true;
+	}
 }
 
 void ProjectileFire(Event* e)
@@ -257,6 +316,9 @@ void IZChecker(Event* e)
 		memory->WriteMemory(0x00467B3D, 125);//臭虫
 		memory->WriteMemory(0x00467B72, 75);//铁桶
 		//字幕
+		break;
+	case PVZLevel::Can_You_DigIt:
+		CreateThread(NULL, 0, &flyplantthread, NULL, 0, NULL);
 		break;
 	default:
 		memory->WriteMemory(0x0042A044, 0);//普通
@@ -434,7 +496,7 @@ void PowerPlantOK(Event* e)
 	delete newplant;
 }
 
-DWORD WINAPI PaperZombieSpawnThread(LPVOID pWaitTime)
+DWORD WINAPI PaperZombieSpawnThread(LPVOID)
 {
 	EventHandler e(pvz);
 	e.RegistryListeners("ZombieSpawn", OnPaperZombieSpawn);
@@ -448,7 +510,7 @@ DWORD WINAPI PaperZombieSpawnThread(LPVOID pWaitTime)
 	return 0;
 }
 
-DWORD WINAPI PaperZombieSpawnThread2(LPVOID pWaitTime)
+DWORD WINAPI PaperZombieSpawnThread2(LPVOID)
 {
 	EventHandler e(pvz);
 	e.RegistryListeners("ZombieSpawn", OnPaperZombieSpawn2);
@@ -462,7 +524,7 @@ DWORD WINAPI PaperZombieSpawnThread2(LPVOID pWaitTime)
 	return 0;
 }
 
-DWORD WINAPI BungeeZombieSpawnThread(LPVOID pWaitTime)
+DWORD WINAPI BungeeZombieSpawnThread(LPVOID)
 {
 	EventHandler e(pvz);
 	e.RegistryListeners("ZombieSpawn", OnBungeeZombieSpawn);
@@ -475,68 +537,13 @@ DWORD WINAPI BungeeZombieSpawnThread(LPVOID pWaitTime)
 	return 0;
 }
 
-DWORD WINAPI mainthread(LPVOID pWaitTime)
+DWORD WINAPI mainthread(LPVOID)
 {
 	EventHandler e(pvz);
 	e.RegistryListeners("PlantRemove", PowerPlantOK);
 	while (pvz->BaseAddress)
 	{
 		e.Run();
-		Sleep(1);
-	}
-	return 0;
-}
-
-DWORD WINAPI lhelperthread(LPVOID pWaitTime)
-{
-	Zombie* zombies[100];
-	Sleep(1600);
-	//可自定义选卡界面僵尸属性
-	int a = PVZ::Memory::ReadMemory<int>(0x6A9EC0);//读取基址
-	a = PVZ::Memory::ReadMemory<int>(a + 0x7fc);//偏移7FC
-	if (a == 2)//判断是否是选卡状态
-	{
-		int len = pvz->GetAllZombies(zombies);
-		for (int i = 0; i < len; i++)
-		{
-			//zombies[i]->State = ZombieState::DYING;//消失
-			//zombies[i]->State = ZombieState::DYING_FROM_LAWNMOWER; //除草机
-			zombies[i]->State = ZombieState::DYING_FROM_INSTANT_KILL; //变黑
-		}
-	}
-	//可自定义选卡界面僵尸属性
-	return 0;
-}
-
-DWORD WINAPI levelthread(LPVOID pWaitTime)
-{
-	while (sixunhuanneedexit == false)
-	{
-		Plant* plants[100];
-		if (pvz->BaseAddress != a0x768 && pvz->BaseAddress != NULL && diyicijinru != 0)
-		{
-		FLAG:
-			if (pvz->GetAllPlants(plants) == 0)
-			{
-				CreateThread(NULL, 0, &lhelperthread, NULL, 0, NULL);//可自定义选卡僵尸状态
-
-				//在此键入代码
-				
-				//在此键入代码
-				a0x768 = pvz->BaseAddress;
-				Sleep(1);
-			}
-		}
-		else if (pvz->BaseAddress != NULL && diyicijinru == 0)
-		{
-			diyicijinru++;
-			goto FLAG;
-		}
-		else if (pvz->LevelId == level && pvz->BaseAddress != NULL && diyicijinru != 0 && pvz->BaseAddress == a0x768)
-		{
-			level = (PVZLevel::PVZLevel)245436778;
-			goto FLAG;
-		}
 		Sleep(1);
 	}
 	return 0;
@@ -565,21 +572,19 @@ int main()
 		cout << "PVZ Glitch" << endl;
 		cout << "官方群号：370019571" << endl;
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED | BACKGROUND_BLUE);
-		cout << "官方只在这个群发布，在其他群下载均为盗版！" << endl;
+		cout << "此版本为基于pvzclass的开源项目！\n开源地址：https://github.com/FxmlesXD/PVZ-Glitch" << endl;
 		cout << endl;
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN | BACKGROUND_BLUE);
 		cout << "当前版本:" << Version << endl;
+		cout << "---------------DEBUG---------------" << endl;
+		cout << "Console hWnd= " << hWnd << endl;
+		cout << "PVZ hWnd= " << PVZhWnd << endl;
 		cout << endl;
 	}
 
 	while (pid)
 	{
 		pid = ProcessOpener::OpenByProcessName(TEXT("PlantsVsZombies.exe"));
-
-		CreateThread(NULL, 0, &PaperZombieSpawnThread, NULL, 0, NULL);
-		CreateThread(NULL, 0, &PaperZombieSpawnThread2, NULL, 0, NULL);
-		CreateThread(NULL, 0, &BungeeZombieSpawnThread, NULL, 0, NULL);
-		CreateThread(NULL, 0, &mainthread, NULL, 0, NULL);
 		
 		pvz = new PVZ(pid);
 		seedcard = pvz->GetCardSlot();
@@ -588,7 +593,7 @@ int main()
 		
 		EnableBackgroundRunning(true);
 		ShowHiddenLevel(true);
-		
+
 		//memory->WriteMemory(0x0040B08F, 250);//第一关初始阳光
 		memory->WriteMemory(0x0069F9A4, 75);//爆炸坚果价格
 		memory->WriteMemory(0x0069F740, 250);//僵尸投手价格（卷心菜投手。）
@@ -602,14 +607,16 @@ int main()
 		
 		if (pvz->BaseAddress)
 		{
-			a0x768 = pvz->BaseAddress;
-			level = pvz->LevelId;
-			HANDLE hThread233 = CreateThread(NULL, 0, &levelthread, NULL, 0, NULL);
+			CreateThread(NULL, 0, &PaperZombieSpawnThread, NULL, 0, NULL);
+			CreateThread(NULL, 0, &PaperZombieSpawnThread2, NULL, 0, NULL);
+			CreateThread(NULL, 0, &BungeeZombieSpawnThread, NULL, 0, NULL);
+			CreateThread(NULL, 0, &mainthread, NULL, 0, NULL);
 			EventHandler e(pvz);
 			e.RegistryListeners("ZombieHypnotized", OnZombieHypnotized);
 			e.RegistryListeners("PlantDamage", OnPlantDamage);
 			e.RegistryListeners("ZombieDead", OnDeath);
 			e.RegistryListeners("ZombieSpawn", FakeCheckLevel);
+			e.RegistryListeners("ZombieSpawn", OnZombieSpawn);
 			e.RegistryListeners("PlantDead", OnPlantDead);
 			e.RegistryListeners("PlantPlant", OnPlantPlant);
 			e.RegistryListeners("LevelStart", IZChecker);
@@ -626,10 +633,6 @@ int main()
 				Sleep(10);//降低CPU
 			}
 		}
-
-		sixunhuanneedexit = true;
-		Sleep(5);
-		sixunhuanneedexit = false;
 		delete pvz;
 	}
 	return 0;
