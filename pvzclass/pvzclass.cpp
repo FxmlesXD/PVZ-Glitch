@@ -22,8 +22,6 @@ PVZ::Memory* memory;
 HWND hWnd = FindWindowA("ConsoleWindowClass", NULL);//主窗口句柄
 //声明变量
 
-
-
 DWORD WINAPI peazombirthread(LPVOID)
 {
 	int row;
@@ -54,17 +52,19 @@ DWORD WINAPI peazombirthread(LPVOID)
 DWORD WINAPI propeazombiethread(LPVOID)
 {
 	Event* e;
-	srand((unsigned)time(NULL));
+	srand(time(NULL));
+	struct timeb timeSeed;
+	ftime(&timeSeed);
+	srand(timeSeed.time * 1000 + timeSeed.millitm);  // milli time
 	peazombietype = rand() % 10 + 1;
 	cout << peazombietype << endl;
 	if (peazombietype == 5)
 	{
 		memory->WriteMemory<int>(0x65109A, 1);
 		CreateThread(NULL, 0, &peazombirthread, NULL, 0, NULL);
-		Sleep(10);
+		Sleep(30);
 		memory->WriteMemory<int>(0x65109A, 0);
 	}
-	Sleep(5000);
 	return 0;
 }
 
@@ -98,7 +98,7 @@ DWORD WINAPI flyplantthread(LPVOID)
 
 void OnZombieSpawn(Event* e)
 {
-	if (((EventZombieSpawn*)e)->zombie->Type == ZombieType::PeashooterZombie && ((EventZombieSpawn*)e)->zombie->Temp != 66988)
+	if (((EventZombieSpawn*)e)->zombie->Type == ZombieType::PeashooterZombie && ((EventZombieSpawn*)e)->zombie->Temp != 66988 && pvz->GameState == PVZGameState::Playing)
 	{
 		CreateThread(NULL, 0, &propeazombiethread, NULL, 0, NULL);
 	}
@@ -210,7 +210,7 @@ void OnBungeeZombieSpawn(Event* e)
 		memory->WriteMemory(0x006511B7, 80);
 		while (zombie->NotExist != true)
 		{
-			if (pvz->GamePaused != true)
+			if (pvz->GamePaused != true && pvz->GameState == 3)
 			{
 				Projectile* pro = Creater::CreateProjectile(ProjectileType::ZombiePea, zombie->Row, zombie->X - 72);
 				pro->Motion = MotionType::Left;
@@ -225,6 +225,10 @@ void OnPlantDamage(Event* e)
 	Plant* plant = ((EventPlantDamage*)e)->plant;
 	Zombie* zombie = ((EventPlantDamage*)e)->zombie;
 	int newzombietype = 0;
+	srand(time(NULL));
+	struct timeb timeSeed;
+	ftime(&timeSeed);
+	srand(timeSeed.time * 1000 + timeSeed.millitm);  // milli time
 	newzombietype = rand() % 32 - 0;
 	if (zombie->Type == ZombieType::ScreenDoorZombie)
 	{
@@ -496,6 +500,11 @@ void PowerPlantOK(Event* e)
 	delete newplant;
 }
 
+void OnLevelStart(Event* e)
+{
+	Creater::CreatePlant(PlantType::Chomper, 0, 0);
+}
+
 DWORD WINAPI PaperZombieSpawnThread(LPVOID)
 {
 	EventHandler e(pvz);
@@ -544,14 +553,78 @@ DWORD WINAPI mainthread(LPVOID)
 	while (pvz->BaseAddress)
 	{
 		e.Run();
-		Sleep(1);
+		Sleep(10);
+	}
+	return 0;
+}
+
+DWORD WINAPI levelthread(LPVOID)
+{
+	while (pvz->BaseAddress)
+	{
+		if (pvz->AdventureLevel == 51)
+		{
+			ZombieType::ZombieType ztypes[] = { ZombieType::FootballZombie,ZombieType::DiggerZombie,ZombieType::NewspaperZombie,ZombieType::JackintheboxZombie,ZombieType::DancingZombie };
+			Creater::CreateZombieInLevel(ztypes, sizeof(ztypes));
+			Plant* plants[100];
+			if (pvz->GetAllPlants(plants) == 0 && pvz->GameState == PVZGameState::Preparing)
+			{
+				for (int i = 0; i < 5; i++)
+				{
+					Creater::CreatePlant(PlantType::UmbrellaLeaf, i, 0);
+				}
+				MessageBoxA(PVZhWnd, "拓展关卡第一关：6-1\n规则：不要让僵尸吃掉你的叶子保护伞！\n提示：他很脆弱。", "关卡提示：", MB_OK);
+				MessageBoxA(PVZhWnd, "本关出怪：\n橄榄僵尸\n矿工僵尸\n报纸僵尸\n小丑僵尸\n舞王僵尸", "关卡信息：", MB_OK);
+			}
+		}
+		Sleep(10);
+	}
+	return 0;
+}
+
+DWORD WINAPI gardenthread(LPVOID)
+{
+	int myplant;
+	PVZ::MousePointer* mop;
+	while (pvz->BaseAddress)
+	{
+		if (pvz->LevelId == PVZLevel::Sunny_Day)
+		{
+			mop = pvz->GetMousePointer();
+			srand(time(NULL));
+			struct timeb timeSeed;
+			ftime(&timeSeed);
+			srand(timeSeed.time * 1000 + timeSeed.millitm);  // milli time
+			myplant = rand() % 48 + 1;
+			if ((CardType::CardType)myplant != CardType::Imitater)
+			{
+				mop->ContentCard = (CardType::CardType)myplant;
+			}
+			PVZ::Coin* coins[199];
+			int len = pvz->GetAllCoins(coins);
+			for (int i = 0; i < len; i++)
+			{
+				if (coins[i]->Type == CoinType::LargeSun)
+				{
+					coins[i]->Type = CoinType::NormalSun;
+				}
+			}
+			PVZ::CardSlot* slot = pvz->GetCardSlot();
+			for (int j = 0; j < 10; j++)
+			{
+				if ((CardType::CardType)myplant != CardType::Imitater)
+				{
+					slot->GetCard(j)->ContentCard = (CardType::CardType)myplant;
+				}
+			}
+		}
+	Sleep(1);
 	}
 	return 0;
 }
 
 int main()
 {
-	PVZhWnd = FindWindowA(NULL, PVZText);
 	GetWindowThreadProcessId(PVZhWnd, &pid);
 	SetConsoleCtrlHandler(OnExit, TRUE);
 	WinExec("PlantsVsZombies.exe", SW_NORMAL);
@@ -567,6 +640,7 @@ int main()
 
 	if (pid)
 	{
+		PVZhWnd = FindWindowA(NULL, PVZText);
 		system("cls");
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY | BACKGROUND_BLUE);
 		cout << "PVZ Glitch" << endl;
@@ -584,6 +658,7 @@ int main()
 
 	while (pid)
 	{
+		PVZhWnd = FindWindowA(NULL, PVZText);
 		pid = ProcessOpener::OpenByProcessName(TEXT("PlantsVsZombies.exe"));
 		
 		pvz = new PVZ(pid);
@@ -604,13 +679,36 @@ int main()
 		memory->WriteMemory(0x0045FB0B, 5);//金盏花第二个（扭头向日葵）
 		memory->WriteMemory(0x0052378F, 10);//樱桃炸弹僵尸 （坚果僵尸头颅对应动画）
 		memory->WriteMemory<byte>(0x00483F1A, 235);//戴夫不选卡
+		memory->WriteMemory(0x6511BC, 113);
 		
+		//These codes make spawn zombies faster than original PVZ.
+		///////////////////////////////////////////////////////////////
+		byte __EB_68[2]{ 0xEB, 0x68 };
+		PVZ::Memory::WriteArray<byte>(0x40D91A, STRING(__EB_68));
+		byte __E9_D1_00_90[6]{ 0xE9, 0xD1, 0x00, 0x00, 0x00, 0x90 };
+		PVZ::Memory::WriteArray<byte>(0x40988A, STRING(__E9_D1_00_90));
+		byte __EB_15[6]{ 0xEB, 0x15 };
+		PVZ::Memory::WriteArray<byte>(0x40AB5A, STRING(__EB_15));
+		PVZ::Memory::WriteArray<byte>(0x40D487, STRING(__EB_15));
+		PVZ::Memory::WriteArray<byte>(0x419B91, STRING(__EB_15));
+		PVZ::Memory::WriteArray<byte>(0x41C058, STRING(__EB_15));
+		PVZ::Memory::WriteArray<byte>(0x41D149, STRING(__EB_15));
+		PVZ::Memory::WriteArray<byte>(0x41F7D7, STRING(__EB_15));
+		PVZ::Memory::WriteArray<byte>(0x41F831, STRING(__EB_15));
+		////////////////////////////////////////////////////////////////
+
 		if (pvz->BaseAddress)
 		{
+			if (pvz->LevelId == PVZLevel::Sunny_Day)
+			{
+				MessageBoxA(PVZhWnd, "自制关卡：随机种植！\n规则：手上的植物随机切换\n卡槽栏的植物也会随机切换\n注：本关的大阳光捡起时会变成中等阳光\n", "关卡提示：", MB_OK);
+			}
 			CreateThread(NULL, 0, &PaperZombieSpawnThread, NULL, 0, NULL);
 			CreateThread(NULL, 0, &PaperZombieSpawnThread2, NULL, 0, NULL);
 			CreateThread(NULL, 0, &BungeeZombieSpawnThread, NULL, 0, NULL);
+			CreateThread(NULL, 0, &levelthread, NULL, 0, NULL);
 			CreateThread(NULL, 0, &mainthread, NULL, 0, NULL);
+			CreateThread(NULL, 0, &gardenthread, NULL, 0, NULL);
 			EventHandler e(pvz);
 			e.RegistryListeners("ZombieHypnotized", OnZombieHypnotized);
 			e.RegistryListeners("PlantDamage", OnPlantDamage);
@@ -622,15 +720,11 @@ int main()
 			e.RegistryListeners("LevelStart", IZChecker);
 			e.RegistryListeners("ProjectileFire", ProjectileFire);
 			e.RegistryListeners("ZombieDamage", OnZombieDamage);
-			while (pvz->BaseAddress)//如果在关卡内，就循环
+			//e.RegistryListeners("LevelOpen", OnLevelStart);
+			while (pvz->BaseAddress)
 			{
-				if (pvz->LevelId == PVZLevel::Portal_Combat)
-				{
-					pvz->Win();
-					MessageBoxA(PVZhWnd, "哈哈，你赢了", "其实这关有bug", MB_OK);
-				}
-				e.Run();//开启日志
-				Sleep(10);//降低CPU
+				e.Run();
+				Sleep(10);
 			}
 		}
 		delete pvz;
