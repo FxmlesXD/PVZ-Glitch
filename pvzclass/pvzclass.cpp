@@ -428,78 +428,6 @@ void OnZombieDamage(Event* e)
 	}
 }
 
-void PowerPlantOK(Event* e)
-{
-	Plant* newplant = new Plant(pid);
-	Plant* plant = ((EventPlantRemove*)e)->plant;
-	if (plant->Type == PlantType::Imitater)
-	{
-		Plant* plants[100];
-		int pls = pvz->GetAllPlants(plants);
-		for (int j = 0; j < pls; j++)
-		{
-			if (plants[j]->Row == plant->Row)
-			{
-				if (plants[j]->Column == plant->Column)
-				{
-					newplant = plants[j];
-					Creater::CreateEffect(96, plant->X, plant->Y);
-				}
-			}
-		}
-		//开始编写代码
-		if (newplant->Type == PlantType::Garlic)//大蒜
-		{
-			Zombie* zombies[500];
-			int len = pvz->GetAllZombies(zombies);
-			for (int i = 0; i < len; i++)
-			{
-				zombies[i]->GarlicBited = true;
-			}
-			newplant->Hp = -100000;
-		}
-		else if (newplant->Type == PlantType::Melonpult)
-		{
-			int anyrow;
-			int anyx;
-			newplant->Hp = -10000;
-			for (int i = 1; i <= 6; i++)
-			{
-				struct timeb timeSeed;
-				ftime(&timeSeed);
-				srand(timeSeed.time * 1000 + timeSeed.millitm);
-				anyrow = rand() % 5;
-				anyx = rand() % 800;
-				Projectile* pro = Creater::CreateProjectile(ProjectileType::Melon, anyrow, anyx);
-				Sleep(300);
-				pro->Motion = MotionType::Direct;
-			}
-		}
-		else if (newplant->Type == PlantType::Sunflower)
-		{
-			newplant->Hp = -10000;
-			for (int i = 1; i <= 10; i++)
-			{
-				Creater::CreateCoin(CoinType::NormalSun, (newplant->Row + 1) * 75, (newplant->Column + 1) * 78, CoinMotionType::Product);
-			}
-		}
-		else if (newplant->Type == PlantType::CherryBomb)
-		{
-			newplant->Hp = -100000;
-			for (byte i = 0; i < 9; i++)
-			{
-				Creater::CreatePlant(PlantType::CherryBomb, newplant->Row, i);
-			}
-		}
-		else
-		{
-			newplant->Hp = -100000;
-			Creater::CreateCaption("invalid power card", 34, CaptionStyle::Bottom);
-		}
-	}
-	delete newplant;
-}
-
 void OnLevelStart(Event* e)
 {
 	Creater::CreatePlant(PlantType::Chomper, 0, 0);
@@ -546,14 +474,161 @@ DWORD WINAPI BungeeZombieSpawnThread(LPVOID)
 	return 0;
 }
 
-DWORD WINAPI mainthread(LPVOID)
+Zombie* firstboss;
+
+DWORD WINAPI level10thread(LPVOID)
 {
-	EventHandler e(pvz);
-	e.RegistryListeners("PlantRemove", PowerPlantOK);
-	while (pvz->BaseAddress)
+	int hp, maxhp;
+	int bossfirst = 0;
+	int bosssecond = 0;
+	int bossthird = 0;
+	int boss4th = 0;
+	int boss5th = 0;
+	int boss6th = 0;
+	Plant* plants[100];
+	Zombie* boss = firstboss;
+	Creater::CreateCaption("Hello!                                                         ", 63, CaptionStyle::Bottom, 300);
+	boss->SetBodyHp(6000, 6000);
+	while (boss->NotExist == false)
 	{
-		e.Run();
-		Sleep(10);
+		boss->GetBodyHp(&hp, &maxhp);
+		boss->X = 400;
+		boss->Size = 1.5;
+		boss->Row = 2;
+		if (hp < 5000 && boss6th == 0)
+		{
+			boss->SetAnimation("anim_smash", APA_LOOP);
+			boss->GetAnimation()->Speed = 2;
+			for (int i = 0; i < 10; i++)
+			{
+				Projectile* bosspea = Creater::CreateProjectile(ProjectileType::ZombiePea, boss->Row, boss->X);
+				bosspea->Motion = MotionType::LeftSlide;
+				bosspea->RotationSpeed = 10;
+				Sleep(50);
+			}
+			boss6th = 1;
+		}
+		if (hp <= 4500 && bossfirst == 0)
+		{
+			Creater::CreateCaption("Brothers go into battle!                                                         ", 81, CaptionStyle::Bottom, 300);
+			for (int i = 0; i < 5; i++)
+			{
+				Creater::CreateZombie(ZombieType::Gargantuar, i, 6);
+			}
+			bossfirst = 1;
+		}
+		if (hp <= 4300 && boss4th == 0)
+		{
+			Creater::CreateZombie(ZombieType::PogoZombie, 1, 13);
+			Creater::CreateZombie(ZombieType::PogoZombie, 3, 13);
+			boss->SetAnimation("anim_smash", APA_ONCE_STOP);
+			Plant* ea = Creater::CreatePlant(PlantType::FlowerPot, boss->Row, boss->X / 80);
+			ea->Visible = false;
+			boss4th = 1;
+		}
+		if (hp <= 3000 && bosssecond == 0)
+		{
+			Creater::CreateCaption("Brothers revive~                                                         ", 73, CaptionStyle::Bottom, 300);
+			for (int i = 0; i < 5; i++)
+			{
+				Creater::CreateZombie(ZombieType::Gigagargantuar, i, 6);
+			}
+			bosssecond = 1;
+		}
+		if (hp <= 1000 && bossthird == 0)
+		{
+			Creater::CreateCaption("HAHAHA!Are you think you can win this battle?                   ", 64, CaptionStyle::Bottom, 500);
+			for (int i = 0; i < pvz->GetAllPlants(plants); i++)
+			{
+				Creater::CreateEffect(76, plants[i]->X + 35, plants[i]->Y + 35);
+				plants[i]->Hp = -10000;
+			}
+			bossthird = 1;
+		}
+		if (hp <= 500 && boss5th == 0)
+		{
+			Creater::CreateCaption("I will be back!                   ", 34, CaptionStyle::Bottom, 500);
+			boss5th = 1;
+		}
+	}
+	int hp1, maxhp1;
+	int bossfirst2 = 0;
+	int bosssecond2 = 0;
+	int bossthird2 = 0;
+	int boss4th2 = 0;
+	int boss5th2 = 0;
+	int boss6th2 = 0;
+	Zombie* boss2 = Creater::CreateZombie(ZombieType::Gigagargantuar, 2, 8);
+	boss2->SetBodyHp(8000, 8000);
+	Creater::CreateCaption("Hey,We meet again,XD!                   ", 40, CaptionStyle::Bottom, 500);
+	while (boss2->NotExist == false)
+	{
+		boss->GetBodyHp(&hp1, &maxhp1);
+		boss2->X = 400;
+		boss2->Size = 2;
+		boss2->Row = 2;
+		if (hp1 < 7500 && bossfirst2 == 0)
+		{
+			boss2->SetAnimation("anim_smash", APA_LOOP);
+			boss2->GetAnimation()->Speed = 2;
+			for (int i = 0; i < 50; i++)
+			{
+				Projectile* bosspea = Creater::CreateProjectile(ProjectileType::ZombiePea, boss2->Row, boss2->X);
+				bosspea->Motion = MotionType::LeftSlide;
+				bosspea->RotationSpeed = 10;
+				Sleep(50);
+			}
+			bossfirst2 = 1;
+		}
+		if (hp1 < 6500 && bosssecond2 == 0)
+		{
+			Creater::CreateCaption("Grave Dance!                   ", 12, CaptionStyle::Bottom, 12);
+			for (int i = 0; i < 5; i++)
+			{
+				Creater::CreateGrave(i, 9);
+				Creater::CreateGrave(i, 8);
+			}
+			bosssecond2 = 1;
+		}
+		if (hp1 < 5500 && boss6th2 == 0)
+		{
+			Creater::CreateCaption("Do you like ladders?                   ", 39, CaptionStyle::Bottom, 20);
+			boss2->SetAnimation("anim_smash", APA_LOOP);
+			boss2->GetAnimation()->Speed = 10;
+			for (int i = 0; i < pvz->GetAllPlants(plants); i++)
+			{
+				Creater::CreateLadder(plants[i]->Row, plants[i]->Column);
+			}
+			boss6th2 = 1;
+		} 
+		if (hp1 < 4500 && bossthird2 == 0)
+		{
+			boss2->SetAnimation("anim_smash", APA_LOOP);
+			boss2->GetAnimation()->Speed = 10;
+			Creater::CreateCaption("lolol,you can't kill me!                   ", 43, CaptionStyle::Bottom, 12);
+			bossthird2 = 1;
+		}
+		if (hp1 <= 3000 && boss4th2 == 0)
+		{
+			boss2->SetAnimation("anim_smash", APA_LOOP);
+			boss2->GetAnimation()->Speed = 10;
+			for (int i = 0; i < pvz->GetAllPlants(plants); i++)
+			{
+				plants[i]->Squash = true;
+			}
+			boss4th2 = 1;
+			boss2->Light(5000);
+		}
+		if (hp1 <= 1500 && boss5th2 == 0)
+		{
+			while (hp <= 1500)
+			{
+				boss2->Light(100);
+				boss2->SetAnimation("anim_smash", APA_LOOP);
+				boss2->GetAnimation()->Speed = 10;
+			}
+			boss5th2 = 1;
+		}
 	}
 	return 0;
 }
@@ -562,11 +637,12 @@ DWORD WINAPI levelthread(LPVOID)
 {
 	while (pvz->BaseAddress)
 	{
+		Plant* plants[100];
+		Zombie* zombies[100];
 		if (pvz->AdventureLevel == 51)
 		{
 			ZombieType::ZombieType ztypes[] = { ZombieType::FootballZombie,ZombieType::DiggerZombie,ZombieType::NewspaperZombie,ZombieType::JackintheboxZombie,ZombieType::DancingZombie };
 			Creater::CreateZombieInLevel(ztypes, sizeof(ztypes));
-			Plant* plants[100];
 			if (pvz->GetAllPlants(plants) == 0 && pvz->GameState == PVZGameState::Preparing)
 			{
 				for (int i = 0; i < 5; i++)
@@ -575,6 +651,29 @@ DWORD WINAPI levelthread(LPVOID)
 				}
 				MessageBoxA(PVZhWnd, "拓展关卡第一关：6-1\n规则：不要让僵尸吃掉你的叶子保护伞！\n提示：他很脆弱。", "关卡提示：", MB_OK);
 				MessageBoxA(PVZhWnd, "本关出怪：\n橄榄僵尸\n矿工僵尸\n报纸僵尸\n小丑僵尸\n舞王僵尸", "关卡信息：", MB_OK);
+			}
+		}
+		if (pvz->AdventureLevel == 10)
+		{
+			if (pvz->GetAllPlants(plants) == 0 && pvz->GameState == PVZGameState::Playing)
+			{
+				int diyici = 0;
+				while (diyici == 0)
+				{
+					pvz->GetWave(5)->Set(1, ZombieType::Gargantuar);
+					while (firstboss == NULL)
+					{
+						for (int i = 0; i < pvz->GetAllZombies(zombies); i++)
+						{
+							if (zombies[i]->Type == ZombieType::Gargantuar)
+							{
+								firstboss = zombies[i];
+							}
+						}
+					}
+					diyici = 1;
+				}
+				CreateThread(NULL, 0, &level10thread, NULL, 0, NULL);
 			}
 		}
 		Sleep(10);
@@ -618,7 +717,7 @@ DWORD WINAPI gardenthread(LPVOID)
 				}
 			}
 		}
-	Sleep(1);
+		Sleep(1);
 	}
 	return 0;
 }
@@ -707,7 +806,6 @@ int main()
 			CreateThread(NULL, 0, &PaperZombieSpawnThread2, NULL, 0, NULL);
 			CreateThread(NULL, 0, &BungeeZombieSpawnThread, NULL, 0, NULL);
 			CreateThread(NULL, 0, &levelthread, NULL, 0, NULL);
-			CreateThread(NULL, 0, &mainthread, NULL, 0, NULL);
 			CreateThread(NULL, 0, &gardenthread, NULL, 0, NULL);
 			EventHandler e(pvz);
 			e.RegistryListeners("ZombieHypnotized", OnZombieHypnotized);
