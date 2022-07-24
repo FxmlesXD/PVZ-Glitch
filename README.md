@@ -1,4 +1,3 @@
-# PVZ-Glitch 官方群号：370019571
 * pvzclass 是一个用于控制植物大战僵尸游戏内部运行实体的一套框架
 * 而PVZ-Glitch是一个基于pvzclass与汇编的改版。
 
