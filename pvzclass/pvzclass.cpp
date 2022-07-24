@@ -743,7 +743,6 @@ int main()
 		system("cls");
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY | BACKGROUND_BLUE);
 		cout << "PVZ Glitch" << endl;
-		cout << "官方群号：370019571" << endl;
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED | BACKGROUND_BLUE);
 		cout << "此版本为基于pvzclass的开源项目！\n开源地址：https://github.com/FxmlesXD/PVZ-Glitch" << endl;
 		cout << endl;
